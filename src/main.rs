@@ -74,9 +74,9 @@ fn main() -> anyhow::Result<()> {
 fn decompact_file(input: Option<impl AsRef<Path>>, output: impl AsRef<Path>) -> anyhow::Result<()> {
     let mut reader: BufReader<Box<dyn Read>> = if let Some(input) = input {
         std::fs::File::open(input)
-        .map(Box::new)
-        .map(|x| x as Box<dyn Read>)
-        .map(|x| std::io::BufReader::with_capacity(4096, x))?
+            .map(Box::new)
+            .map(|x| x as Box<dyn Read>)
+            .map(|x| std::io::BufReader::with_capacity(4096, x))?
     } else {
         (Box::new(stdin()) as Box<dyn Read>).pipe(|x| BufReader::with_capacity(4096, x))
     };
@@ -90,7 +90,11 @@ fn decompact_file(input: Option<impl AsRef<Path>>, output: impl AsRef<Path>) -> 
     decompact_ws(&mut reader, &mut writer)
         .and_then(|_| writer.flush().context("Unable to flush file"))
         .context("Unable to decompact region")
-        .inspect_err(|_| { std::fs::remove_file(output).inspect_err(|e| eprintln!("{e}")).ok(); })?;
+        .inspect_err(|_| {
+            std::fs::remove_file(output)
+                .inspect_err(|e| eprintln!("{e}"))
+                .ok();
+        })?;
 
     Ok(())
 }
@@ -154,7 +158,7 @@ fn compact(reader: impl Read, mut writer: impl Write) -> anyhow::Result<u64> {
 
         let data =
             ChunkData::ref_from_bytes(chunkbuf.as_bytes()).map_err(|x| x.map_src(|_| &()))?;
-        
+
         data.decompress(&mut databuf)?;
 
         let header = BinHeader {
@@ -174,7 +178,7 @@ fn compact(reader: impl Read, mut writer: impl Write) -> anyhow::Result<u64> {
 }
 
 fn decompact_ws(mut reader: impl Read, mut writer: impl Write + Seek) -> anyhow::Result<u64> {
-    let mut chunkinfos = vec![];
+    let mut chunkinfos = vec![None; 1024];
     let mut header = BinHeader::new_zeroed();
     let mut buffer = vec![];
 
@@ -191,16 +195,12 @@ fn decompact_ws(mut reader: impl Read, mut writer: impl Write + Seek) -> anyhow:
 
             chunkinfos
                 .iter()
-                .map(|x: &ChunkInfo| x.timestamp)
-                .chain(core::iter::repeat(U32::<BigEndian>::new_zeroed()))
-                .take(1024)
+                .map(|x| x.as_ref().map(|x: &ChunkInfo| x.locdata.get()).unwrap_or(FromZeros::new_zeroed()))
                 .try_for_each(|x| writer.write_all(x.as_bytes()))?;
 
             chunkinfos
                 .iter()
-                .map(|x: &ChunkInfo| x.locdata.get())
-                .chain(core::iter::repeat(0u32))
-                .take(1024)
+                .map(|x| x.as_ref().map(|x: &ChunkInfo| x.timestamp).unwrap_or(FromZeros::new_zeroed()))
                 .try_for_each(|x| writer.write_all(x.as_bytes()))?;
 
             return Ok(location);
@@ -221,11 +221,9 @@ fn decompact_ws(mut reader: impl Read, mut writer: impl Write + Seek) -> anyhow:
         let left = (ChunkInfo::SECTOR_SIZE as u64 - (copied & COPIED_MASK)) & COPIED_MASK;
         writer.seek(std::io::SeekFrom::Current(left as i64))?;
 
-        chunkinfos.push(ChunkInfo::new(
+        chunkinfos[header.pos.get() as usize] = Some(ChunkInfo::new(
             location.try_into().unwrap(),
-            (copied + left)
-                .try_into()
-                .unwrap(),
+            (copied + left).try_into().unwrap(),
             header.timestamp.get(),
         ));
 
