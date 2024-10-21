@@ -151,6 +151,12 @@ fn compact(reader: impl Read, mut writer: impl Write) -> anyhow::Result<u64> {
             break;
         };
 
+        if cfg!(debug_assertions) {
+            chunkbuf
+                .iter_mut()
+                .for_each(|x| *x = 0);
+        }
+
         chunkbuf.extend((chunkbuf.len()..info.size().div_ceil(4) as usize).map(|_| 0));
         let Some(_) = regionreader.read_next_chunk(chunkbuf.as_mut_slice().as_mut_bytes())? else {
             break;
@@ -181,6 +187,7 @@ fn decompact_ws(mut reader: impl Read, mut writer: impl Write + Seek) -> anyhow:
     let mut chunkinfos = vec![None; 1024];
     let mut header = BinHeader::new_zeroed();
     let mut buffer = vec![];
+    let mut buffer2 = vec![];
 
     writer.seek(std::io::SeekFrom::Start(RegionInfo::SIZE as u64))?;
     let mut location = RegionInfo::SIZE as u64;
@@ -213,22 +220,31 @@ fn decompact_ws(mut reader: impl Read, mut writer: impl Write + Seek) -> anyhow:
             std::io::Error::from(std::io::ErrorKind::UnexpectedEof)
         );
 
-        let mut compreader = flate2::read::GzEncoder::new(&buffer[..], Compression::new(3));
-        let copied =
-            std::io::copy(&mut compreader, &mut writer).context("Compression/write failed")?;
+        let mut compreader = flate2::read::ZlibEncoder::new(&buffer[..], Compression::new(3));
+        let compressed_size =
+            std::io::copy(&mut compreader, &mut buffer2).context("Compression/write failed")?;
+
+        let data_size = compressed_size + 5;
+
+        writer.write_all(U32::<BigEndian>::new((data_size - 4) as u32).as_bytes())?;
+        writer.write_all(2u8.as_bytes())?;
+        writer.write_all(&buffer2)?;
 
         const COPIED_MASK: u64 = const { ChunkInfo::SECTOR_SIZE as u64 - 1 };
-        let left = (ChunkInfo::SECTOR_SIZE as u64 - (copied & COPIED_MASK)) & COPIED_MASK;
+        let left = (ChunkInfo::SECTOR_SIZE as u64 - (data_size & COPIED_MASK)) & COPIED_MASK;
         writer.seek(std::io::SeekFrom::Current(left as i64))?;
 
-        chunkinfos[header.pos.get() as usize] = Some(ChunkInfo::new(
+        let chunkinfo = Some(ChunkInfo::new(
             location.try_into().unwrap(),
-            (copied + left).try_into().unwrap(),
+            (data_size + left).try_into().unwrap(),
             header.timestamp.get(),
         ));
+        let old = core::mem::replace(&mut chunkinfos[header.pos.get() as usize], chunkinfo);
+        debug_assert!(old.is_none());
 
-        location += copied + left;
+        location += data_size + left;
 
         buffer.clear();
+        buffer2.clear();
     }
 }

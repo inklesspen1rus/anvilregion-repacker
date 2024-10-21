@@ -7,10 +7,6 @@ It's fast! It's blazingly fast! Because it's Rust 🚀!
 
 # Quicky FAQ
 
-## Does it work?
-
-Currently, no. WIP.
-
 ## What exactly it does?
 
 Minecraft holds chunks in files compressed with not-so-good algorithms. One compressed chunk usually weight around 500 bytes.  
@@ -22,7 +18,9 @@ But archives doesn't updating chunks. So here we are...
 
 ## Is this tested?
 
-Nope =\)
+Yep. Manually.
+
+Test this for your purposes before use with real data.
 
 ## Is it stable now?
 

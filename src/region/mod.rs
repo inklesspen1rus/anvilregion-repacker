@@ -184,3 +184,41 @@ impl<R: Read> ReadSkip for R {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use bytes::{BufMut, Bytes, BytesMut};
+    use zerocopy::{IntoBytes, TryFromBytes};
+
+    use crate::region::ChunkInfo;
+
+    use super::{RegionInfo, RegionReader};
+
+    #[test]
+    fn chunk_info_new() {
+        let locdata = [[0u8, 0, 16, 2]; 1024];
+        let timestamp = [[0u8, 0, 1, 0]; 1024];
+
+        let mut buf = BytesMut::new();
+        (&mut buf).writer().write_all(locdata.as_bytes()).unwrap();
+        (&mut buf).writer().write_all(timestamp.as_bytes()).unwrap();
+
+        let region_reader =  RegionReader::from_reader(&buf[..]).unwrap();
+
+        let info = region_reader.next_chunk_info().unwrap();
+
+        assert_eq!(info.0.location(), 16 * 4096);
+        assert_eq!(info.0.size(), 2 * 4096);
+        assert_eq!(info.0.timestamp.get(), 256);
+
+        assert_eq!(info.1, 0);
+
+        let info = ChunkInfo::new(info.0.location().try_into().unwrap(), info.0.size().try_into().unwrap(), info.0.timestamp.get());
+
+        assert_eq!(info.location(), 16 * 4096);
+        assert_eq!(info.size(), 2 * 4096);
+        assert_eq!(info.timestamp.get(), 256);
+    }
+}
