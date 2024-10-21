@@ -27,7 +27,12 @@ struct BinHeader {
 
 #[derive(Debug, Parser)]
 struct Cli {
+    /// Input file
+    #[arg(short, long)]
     pub input: Option<PathBuf>,
+
+    /// Output file. Required for decompacting
+    #[arg(short, long)]
     pub output: Option<PathBuf>,
 
     #[arg(short)]
@@ -67,12 +72,13 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn decompact_file(input: Option<impl AsRef<Path>>, output: impl AsRef<Path>) -> anyhow::Result<()> {
-    let mut reader: Box<dyn Read> = if let Some(input) = input {
+    let mut reader: BufReader<Box<dyn Read>> = if let Some(input) = input {
         std::fs::File::open(input)
-            .map(std::io::BufReader::new)
-            .map(Box::new)?
+        .map(Box::new)
+        .map(|x| x as Box<dyn Read>)
+        .map(|x| std::io::BufReader::with_capacity(4096, x))?
     } else {
-        Box::new(stdin())
+        (Box::new(stdin()) as Box<dyn Read>).pipe(|x| BufReader::with_capacity(4096, x))
     };
 
     let mut writer = std::fs::File::options()
@@ -92,15 +98,16 @@ fn decompact_file(input: Option<impl AsRef<Path>>, output: impl AsRef<Path>) -> 
 fn compact_file(input: impl AsRef<Path>, output: Option<impl AsRef<Path>>) -> anyhow::Result<()> {
     let mut reader = std::fs::File::open(input.as_ref())?.pipe(std::io::BufReader::new);
 
-    let mut writer: Box<dyn Write> = if let Some(output_file) = output.as_ref() {
+    let mut writer: BufWriter<Box<dyn Write>> = if let Some(output_file) = output.as_ref() {
         std::fs::File::options()
             .write(true)
             .create(true)
             .open(output_file)?
-            .pipe(std::io::BufWriter::new)
             .pipe(Box::new)
+            .pipe(|x| x as Box<dyn Write>)
+            .pipe(std::io::BufWriter::new)
     } else {
-        Box::new(stdout())
+        (Box::new(stdout()) as Box<dyn Write>).pipe(BufWriter::new)
     };
 
     if let Err(e) = compact(&mut reader, &mut writer).context(anyhow!(
@@ -147,6 +154,7 @@ fn compact(reader: impl Read, mut writer: impl Write) -> anyhow::Result<u64> {
 
         let data =
             ChunkData::ref_from_bytes(chunkbuf.as_bytes()).map_err(|x| x.map_src(|_| &()))?;
+        
         data.decompress(&mut databuf)?;
 
         let header = BinHeader {

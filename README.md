@@ -10,15 +10,23 @@ It's fast! It's blazingly fast! Because it's Rust 🚀!
 ## What exactly it does?
 
 Minecraft holds chunks in files compressed with not-so-good algorithms. One compressed chunk usually weight around 500 bytes.  
-But one sector of region file is 4096! Chunks are stored by sectors not by chunks. So, for small chunks there are overhead by ~75%.
+But one sector of region file is 4096! Chunks are stored by sectors not by chunks. So, for small chunks there are overhead around ~75%.
 Some sectors are unused due to chunk growing.
 
-Does it mean Minecraft is bad? Absolutely not! It's optimizer for random-access to prevent full file rewrite for each time any chunk is updated.
+Does it mean Minecraft is bad? Absolutely not! It's optimized for random access to prevent full file rewrite for each time any chunk is updated.
 But archives doesn't updating chunks. So here we are...
 
 ## Is this tested?
 
 Nope =\)
+
+## Is it stable now?
+
+Nope. Cli usage can change 5 times at 1 second.
+
+## Does packed file guaranted to be stable across commits?
+
+Not yet. But repack-feature is still usable and stable by definition!
 
 ## Does it help if I want to backup the world?
 
@@ -35,7 +43,7 @@ Also, it's fast.
 $ du -hs r.10.4.mca
 12M r.10.4.mca # BIG! Sad :c
 
-$ anvilregion-repacker -c r.10.4.mca r.10.4.mca.bin
+$ anvilregion-repacker -c -i r.10.4.mca -o r.10.4.mca.bin
 $ du -hs r.10.4.mca.bin
 33M r.10.4.mca.bin # BIGGER! But wait...
 
@@ -49,7 +57,7 @@ $ du -hs r.10.4.mca{,.bin}.zst
 
 Yep!
 
-This utility can remove usused sectors and replace unused space with zeroes.
+This utility can remove unused sectors and replace unused space with zeroes.
 Also, compressing such world will result less size due to zeroes.
 
 Also, it's fast.
@@ -60,20 +68,33 @@ Also, it's fast.
 $ du -hs r.10.4.mca
 12M r.10.4.mca # BIG! Sad :c
 
-$ anvilregion-repacker -c r.10.4.mca r.10.4.mca.bin
+$ anvilregion-repacker -c -i r.10.4.mca -o r.10.4.mca.bin
 $ du -hs r.10.4.mca.bin
 33M r.10.4.mca.bin # BIGGER! But wait...
 
-$ anvilregion-repacker -d r.10.4.mca.bin r.10.4.mca.2
+$ anvilregion-repacker -d -i r.10.4.mca.bin -o r.10.4.mca.2
 $ du -hs r.10.4.mca{,.2}
 12M     r.10.4.mca # 🦥
 4,7M    r.10.4.mca.2 # 🚀
+
+# That's the same but without large buffer file
+$ anvilregion-repacker -c -i r.10.4.mca | anvilregion-repacker -d r.10.4.mca.bin -o r.10.4.mca.2
 
 $ zstd r.10.4.mca r.10.4.mca.2
 $ du -hs r.10.4.mca{,.2}.zst
 10M     r.10.4.mca.zst # 🦥
 2,6M    r.10.4.mca.2.zst # 🚀🚀🚀
 ```
+
+# Known issues
+
++ LZ4 compressed worlds (since 1.20.5) are not supported
++ Corrupted chunks prevents process of an entire region
+
+# How to build
+
+Requirements:
++ Rust
 
 # Related (and probably more recommended)
 
