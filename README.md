@@ -16,6 +16,10 @@ Some sectors are unused due to chunk growing.
 Does it mean Minecraft is bad? Absolutely not! It's optimizer for random-access to prevent full file rewrite for each time any chunk is updated.
 But archives doesn't updating chunks. So here we are...
 
+## Is this tested?
+
+Nope =\)
+
 ## Does it help if I want to backup the world?
 
 Yep!
@@ -24,10 +28,6 @@ This utility can decompress and packet together all chunks so there are no trash
 You can *manually* compress resulting file to get much smaller files.
 
 Also, it's fast.
-
-## Is this tested?
-
-Nope =\)
 
 ### Example
 
