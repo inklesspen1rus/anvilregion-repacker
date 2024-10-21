@@ -7,6 +7,10 @@ It's fast! It's blazingly fast! Because it's Rust 🚀!
 
 # Quicky FAQ
 
+## Does it work?
+
+Currently, no. WIP.
+
 ## What exactly it does?
 
 Minecraft holds chunks in files compressed with not-so-good algorithms. One compressed chunk usually weight around 500 bytes.  
