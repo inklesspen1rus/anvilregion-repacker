@@ -6,16 +6,19 @@ use std::{
 use anyhow::{anyhow, bail, ensure, Context};
 use bytes::{BufMut, BytesMut};
 use chunk::ChunkData;
-use clap::{Args, Parser};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use flate2::Compression;
 use region::{ChunkInfo, RegionInfo, RegionReader};
+use rpack::CompactCompression;
 use tap::Pipe;
 use zerocopy::{
-    transmute, BigEndian, FromBytes, FromZeros, Immutable, IntoBytes, LittleEndian, U32, U64,
+    transmute, BigEndian, FromBytes, FromZeros, Immutable, IntoBytes, LittleEndian, TryFromBytes,
+    U32, U64,
 };
 
 mod chunk;
 mod region;
+mod rpack;
 
 #[derive(Debug, Clone, FromBytes, IntoBytes, Immutable)]
 #[repr(C)]
@@ -26,47 +29,69 @@ struct BinHeader {
 }
 
 #[derive(Debug, Parser)]
+#[command(version, about, long_about = None)]
+#[command(next_line_help = true)]
 struct Cli {
-    /// Input file
-    #[arg(short, long)]
-    pub input: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Commands,
+}
 
-    /// Output file. Required for decompacting
-    #[arg(short, long)]
-    pub output: Option<PathBuf>,
+#[derive(Debug, Subcommand)]
+enum Commands {
+    Compact {
+        #[arg(short, long, default_value = "CompactCompression::Zstd")]
+        compression: CompactCompression,
 
-    #[arg(short)]
-    pub compact: bool,
+        /// Input file. Default: stdin
+        #[arg(short, long)]
+        input: Option<PathBuf>,
 
-    #[arg(short)]
-    pub decompact: bool,
+        /// Output file. Default: stdout
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    Decompact {
+        #[arg(short, long)]
+        compression: DecompactCompression,
+
+        /// Input file. Default: stdin
+        #[arg(short, long)]
+        input: Option<PathBuf>,
+
+        /// Output file. Required.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[repr(u8)]
+enum DecompactCompression {
+    GZip = 1,
+    Zlib = 2,
+    LZ4 = 4,
+    None = 3,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
 
-    ensure!(
-        args.compact != args.decompact || !args.compact,
-        "Must be specified only a single operation!"
-    );
-    ensure!(
-        args.compact != args.decompact || args.compact,
-        "Operation must be specified!"
-    );
-
-    if args.compact {
-        let input = args
-            .input
-            .context("Input file must be specified when compacting")?;
-
-        compact_file(input, args.output)?;
-    } else {
-        let output = args
-            .output
-            .context("Output file must be specified when decompacting")?;
-
-        decompact_file(args.input, output)?;
-    }
+    match args.command {
+        Commands::Compact {
+            compression,
+            input,
+            output,
+        } => {
+            compact_file(input, output, compression)?;
+        }
+        Commands::Decompact {
+            compression,
+            input,
+            output,
+        } => {
+            decompact_file(input, output)?;
+        }
+    };
 
     Ok(())
 }
@@ -99,8 +124,19 @@ fn decompact_file(input: Option<impl AsRef<Path>>, output: impl AsRef<Path>) -> 
     Ok(())
 }
 
-fn compact_file(input: impl AsRef<Path>, output: Option<impl AsRef<Path>>) -> anyhow::Result<()> {
-    let mut reader = std::fs::File::open(input.as_ref())?.pipe(std::io::BufReader::new);
+fn compact_file(
+    input: Option<impl AsRef<Path>>,
+    output: Option<impl AsRef<Path>>,
+    compression: CompactCompression,
+) -> anyhow::Result<()> {
+    let mut reader: BufReader<Box<dyn Read>> = if let Some(input) = input {
+        std::fs::File::open(input)
+            .map(Box::new)
+            .map(|x| x as Box<dyn Read>)
+            .map(|x| std::io::BufReader::with_capacity(4096, x))?
+    } else {
+        (Box::new(stdin()) as Box<dyn Read>).pipe(|x| BufReader::with_capacity(4096, x))
+    };
 
     let mut writer: BufWriter<Box<dyn Write>> = if let Some(output_file) = output.as_ref() {
         std::fs::File::options()
@@ -152,9 +188,7 @@ fn compact(reader: impl Read, mut writer: impl Write) -> anyhow::Result<u64> {
         };
 
         if cfg!(debug_assertions) {
-            chunkbuf
-                .iter_mut()
-                .for_each(|x| *x = 0);
+            chunkbuf.iter_mut().for_each(|x| *x = 0);
         }
 
         chunkbuf.extend((chunkbuf.len()..info.size().div_ceil(4) as usize).map(|_| 0));
@@ -202,12 +236,20 @@ fn decompact_ws(mut reader: impl Read, mut writer: impl Write + Seek) -> anyhow:
 
             chunkinfos
                 .iter()
-                .map(|x| x.as_ref().map(|x: &ChunkInfo| x.locdata.get()).unwrap_or(FromZeros::new_zeroed()))
+                .map(|x| {
+                    x.as_ref()
+                        .map(|x: &ChunkInfo| x.locdata.get())
+                        .unwrap_or(FromZeros::new_zeroed())
+                })
                 .try_for_each(|x| writer.write_all(x.as_bytes()))?;
 
             chunkinfos
                 .iter()
-                .map(|x| x.as_ref().map(|x: &ChunkInfo| x.timestamp).unwrap_or(FromZeros::new_zeroed()))
+                .map(|x| {
+                    x.as_ref()
+                        .map(|x: &ChunkInfo| x.timestamp)
+                        .unwrap_or(FromZeros::new_zeroed())
+                })
                 .try_for_each(|x| writer.write_all(x.as_bytes()))?;
 
             return Ok(location);

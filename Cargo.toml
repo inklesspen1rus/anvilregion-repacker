@@ -7,6 +7,9 @@ edition = "2021"
 anyhow = "1.0.90"
 bytes = "1.7.2"
 clap = { version = "4.5.20", features = ["derive"] }
+count-write = "0.1.0"
 flate2 = "1.0.34"
+lz4_flex = "0.11.3"
 tap = "1.0.1"
 zerocopy = { version = "0.8.6", features = ["derive"] }
+zstd = "0.13.2"
