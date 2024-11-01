@@ -4,14 +4,13 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, ensure, Context};
-use bytes::{BufMut, BytesMut};
 use chunk::ChunkData;
-use clap::{Args, Parser};
+use clap::Parser;
 use flate2::Compression;
 use region::{ChunkInfo, RegionInfo, RegionReader};
 use tap::Pipe;
 use zerocopy::{
-    transmute, BigEndian, FromBytes, FromZeros, Immutable, IntoBytes, LittleEndian, U32, U64,
+    BigEndian, FromBytes, FromZeros, Immutable, IntoBytes, LittleEndian, U32, U64,
 };
 
 mod chunk;

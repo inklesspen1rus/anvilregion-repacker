@@ -1,11 +1,11 @@
-use anyhow::{ensure, Context};
-use bytes::{BufMut, BytesMut};
+#![allow(unused)]
+
+use anyhow::Context;
 use core::{
     fmt::Debug,
-    num::{NonZero, NonZeroU32, NonZeroU64},
-    ops::Range,
+    num::{NonZeroU32, NonZeroU64},
 };
-use std::io::{Read, Seek, Write};
+use std::io::{Read, Write};
 use zerocopy::{try_transmute, BigEndian, IntoBytes, TryFromBytes, U32};
 
 #[derive(TryFromBytes, Clone, Copy)]
@@ -189,12 +189,12 @@ impl<R: Read> ReadSkip for R {
 mod tests {
     use std::io::Write;
 
-    use bytes::{BufMut, Bytes, BytesMut};
-    use zerocopy::{IntoBytes, TryFromBytes};
+    use bytes::{BufMut, BytesMut};
+    use zerocopy::IntoBytes;
 
     use crate::region::ChunkInfo;
 
-    use super::{RegionInfo, RegionReader};
+    use super::RegionReader;
 
     #[test]
     fn chunk_info_new() {

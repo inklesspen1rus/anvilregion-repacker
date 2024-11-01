@@ -1,8 +1,9 @@
+#![allow(unused)]
+
 use anyhow::bail;
-use bytes::Buf;
 use core::fmt::Debug;
 use std::io::Write;
-use zerocopy::{BigEndian, FromBytes, FromZeros, Immutable, KnownLayout, U32};
+use zerocopy::{BigEndian, FromBytes, Immutable, KnownLayout, U32};
 
 #[derive(FromBytes, KnownLayout, Immutable)]
 #[repr(C, align(4))]
