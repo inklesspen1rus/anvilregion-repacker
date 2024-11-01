@@ -4,9 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.90"
-bytes = "1.7.2"
-clap = { version = "4.5.20", features = ["derive"] }
-flate2 = "1.0.34"
-tap = "1.0.1"
-zerocopy = { version = "0.8.6", features = ["derive"] }
+anyhow = "1"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+tap = "1"
+zerocopy = { version = "0.8", features = ["derive"] }
+flate2 = { version = "1", default-features = false }
+
+[features]
+default = ["flate2/zlib-rs"]
+zlib-ng = ["flate2/zlib-ng"]
+
+[profile.release-debug]
+inherits = "release"
+debug = true
