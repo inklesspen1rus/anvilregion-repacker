@@ -12,8 +12,13 @@ zerocopy = { version = "0.8", features = ["derive"] }
 flate2 = { version = "1", default-features = false }
 
 [features]
-default = ["flate2/zlib-rs"]
+default = ["zlib-rs"]
+zlib-rs = ["flate2/zlib-rs"]
 zlib-ng = ["flate2/zlib-ng"]
+miniz_oxide = ["flate2/miniz_oxide", "flate2/any_impl"]
+
+[profile.dev]
+opt-level = 1 # Make dev builds a lot performant
 
 [profile.release-debug]
 inherits = "release"
