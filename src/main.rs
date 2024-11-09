@@ -10,7 +10,7 @@ use flate2::Compression;
 use region::{ChunkInfo, RegionInfo, RegionReader};
 use tap::Pipe;
 use zerocopy::{
-    BigEndian, FromBytes, FromZeros, Immutable, IntoBytes, LittleEndian, U32, U64,
+    BigEndian, FromBytes, FromZeros, Immutable, IntoBytes, LittleEndian, TryFromBytes, U32, U64
 };
 
 mod chunk;
@@ -162,7 +162,7 @@ fn compact(reader: impl Read, mut writer: impl Write) -> anyhow::Result<u64> {
         };
 
         let data =
-            ChunkData::ref_from_bytes(chunkbuf.as_bytes()).map_err(|x| x.map_src(|_| &()))?;
+            ChunkData::try_ref_from_bytes(chunkbuf.as_bytes()).map_err(|x| x.map_src(|_| &()))?;
 
         data.decompress(&mut databuf)?;
 

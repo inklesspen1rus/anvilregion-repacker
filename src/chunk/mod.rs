@@ -3,13 +3,13 @@
 use anyhow::bail;
 use core::fmt::Debug;
 use std::io::Write;
-use zerocopy::{BigEndian, FromBytes, Immutable, KnownLayout, U32};
+use zerocopy::{BigEndian, FromBytes, Immutable, KnownLayout, TryFromBytes, U32};
 
-#[derive(FromBytes, KnownLayout, Immutable)]
+#[derive(TryFromBytes, KnownLayout, Immutable)]
 #[repr(C, align(4))]
 pub struct ChunkData {
     length: U32<BigEndian>,
-    pub compression_type: u8,
+    pub compression_type: CompressionType,
     pub data: [u8],
 }
 
@@ -24,19 +24,22 @@ impl ChunkData {
             .split_at_checked(self.length())
             .ok_or(std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?;
 
-        if self.compression_type == CompressionType::Zlib as u8 {
-            let mut decompressor = flate2::read::ZlibDecoder::new(data);
-            let copied = std::io::copy(&mut decompressor, &mut writer)?;
-            Ok(copied as usize)
-        } else if self.compression_type == CompressionType::GZip as u8 {
-            let mut decompressor = flate2::read::GzDecoder::new(data);
-            let copied = std::io::copy(&mut decompressor, &mut writer)?;
-            Ok(copied as usize)
-        } else if self.compression_type == CompressionType::Uncompressed as u8 {
-            let copied = std::io::copy(&mut &data[..], &mut writer)?;
-            Ok(copied as usize)
-        } else {
-            bail!("Unknown compression type {}", self.compression_type)
+        match self.compression_type {
+            CompressionType::GZip => {
+                let mut decompressor = flate2::read::GzDecoder::new(data);
+                let copied = std::io::copy(&mut decompressor, &mut writer)?;
+                Ok(copied as usize)
+            },
+            CompressionType::Zlib => {
+                let mut decompressor = flate2::read::ZlibDecoder::new(data);
+                let copied = std::io::copy(&mut decompressor, &mut writer)?;
+                Ok(copied as usize)
+            },
+            CompressionType::Uncompressed => {
+                let copied = std::io::copy(&mut &data[..], &mut writer)?;
+                Ok(copied as usize)
+            },
+            // CompressionType::LZ4 => todo!(),
         }
     }
 }
@@ -52,13 +55,12 @@ impl Debug for ChunkData {
     }
 }
 
-#[derive(Debug)]
+#[derive(TryFromBytes, Immutable, KnownLayout, Debug)]
 #[repr(u8)]
 #[non_exhaustive]
 pub enum CompressionType {
     GZip = 1,
     Zlib = 2,
     Uncompressed = 3,
-    LZ4 = 4,
-    Custom = 127,
+    // LZ4 = 4,
 }
