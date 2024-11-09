@@ -150,12 +150,6 @@ fn compact(reader: impl Read, mut writer: impl Write) -> anyhow::Result<u64> {
             break;
         };
 
-        if cfg!(debug_assertions) {
-            chunkbuf
-                .iter_mut()
-                .for_each(|x| *x = 0);
-        }
-
         chunkbuf.extend((chunkbuf.len()..info.size().div_ceil(4) as usize).map(|_| 0));
         let Some(_) = regionreader.read_next_chunk(chunkbuf.as_mut_slice().as_mut_bytes())? else {
             break;
